@@ -19,13 +19,22 @@ package com.example.bluromatic.data
 import android.content.Context
 import android.net.Uri
 import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.example.bluromatic.KEY_BLUR_LEVEL
 import com.example.bluromatic.KEY_IMAGE_URI
+import com.example.bluromatic.getImageUri
+import com.example.bluromatic.workers.BlurWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
+
+    private var imageUri: Uri = context.getImageUri()
+
+    //Se guarda una instancia de WorkManager
+    private val workManager = WorkManager.getInstance(context)
 
     override val outputWorkInfo: Flow<WorkInfo?> = MutableStateFlow(null)
 
@@ -33,7 +42,18 @@ class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
      * Create the WorkRequests to apply the blur and save the resulting image
      * @param blurLevel The amount to blur the image
      */
-    override fun applyBlur(blurLevel: Int) {}
+    override fun applyBlur(blurLevel: Int) {
+        //Crea un WorkRequest para desenfocar la imagen
+        //Hay dos tipos de elementos WorkRequest, OneTimeWorkRequest en la cual se ejecuta
+        //una solla vez, PeriodicWorkRequest se ejecuta de manera repetica en un ciclo
+        val blurBuilder = OneTimeWorkRequestBuilder<BlurWorker>()
+
+        //Se establece el objato de datos de entrada para WorkRequest
+        blurBuilder.setInputData(createInputDataForWorkRequest(blurLevel, imageUri))
+
+        //Se inicia el trabajo haciendo llamado al metodo enqueue
+        workManager.enqueue(blurBuilder.build())
+    }
 
     /**
      * Cancel any ongoing WorkRequests
@@ -46,7 +66,9 @@ class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
      * @return Data which contains the Image Uri as a String and blur level as an Integer
      */
     private fun createInputDataForWorkRequest(blurLevel: Int, imageUri: Uri): Data {
+        //Se crea un objeot Data.Builder
         val builder = Data.Builder()
+        //Coloca imageUri y blurLevel como pares clave-valor
         builder.putString(KEY_IMAGE_URI, imageUri.toString()).putInt(KEY_BLUR_LEVEL, blurLevel)
         return builder.build()
     }
