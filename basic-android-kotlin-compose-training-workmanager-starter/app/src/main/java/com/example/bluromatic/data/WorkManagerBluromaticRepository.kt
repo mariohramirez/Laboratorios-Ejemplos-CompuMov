@@ -19,6 +19,7 @@ package com.example.bluromatic.data
 import android.content.Context
 import android.net.Uri
 import androidx.work.Data
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -26,6 +27,8 @@ import com.example.bluromatic.KEY_BLUR_LEVEL
 import com.example.bluromatic.KEY_IMAGE_URI
 import com.example.bluromatic.getImageUri
 import com.example.bluromatic.workers.BlurWorker
+import com.example.bluromatic.workers.CleanupWorker
+import com.example.bluromatic.workers.SaveImageToFileWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -43,6 +46,11 @@ class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
      * @param blurLevel The amount to blur the image
      */
     override fun applyBlur(blurLevel: Int) {
+
+        //Crea el punto de partida para una cade de WorkRequest con la primera solicitud de trabajo
+        //en la cadena
+        var continuation = workManager.beginWith(OneTimeWorkRequest.from(CleanupWorker::class.java))
+
         //Crea un WorkRequest para desenfocar la imagen
         //Hay dos tipos de elementos WorkRequest, OneTimeWorkRequest en la cual se ejecuta
         //una solla vez, PeriodicWorkRequest se ejecuta de manera repetica en un ciclo
@@ -52,7 +60,17 @@ class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
         blurBuilder.setInputData(createInputDataForWorkRequest(blurLevel, imageUri))
 
         //Se inicia el trabajo haciendo llamado al metodo enqueue
-        workManager.enqueue(blurBuilder.build())
+        //workManager.enqueue(blurBuilder.build())
+
+        //then agrega una solicitud de trabajo a la cadena
+        continuation = continuation.then(blurBuilder.build())
+
+        //Crea una solicitud de trabajo para guardar la imagen y se agrega a la cadena
+        val save = OneTimeWorkRequestBuilder<SaveImageToFileWorker>().build()
+        continuation = continuation.then(save)
+
+        //Se inicia el trabajo
+        continuation.enqueue()
     }
 
     /**
